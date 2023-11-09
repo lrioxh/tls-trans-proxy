@@ -1,17 +1,19 @@
 
 #include "include/prxoy_lib.h"
 
-ProxyStates *initProxyStates(uint16_t version, EVP_MD *md)
+ProxyStates *initProxyStates(void)
 {
     ProxyStates *states = (ProxyStates *)malloc(sizeof(ProxyStates));
-    states->version = version;
-    states->md = md;
+    states->version = NULL;
+    states->md = NULL;
     states->cert_proxy = NULL;
     states->cert_server = NULL;
     states->key_block = (KEY_block *)malloc(sizeof(KEY_block));
     // states->client_HS_buf = (uint8_t *)malloc(BUFSIZE * sizeof(char));
     // states->server_HS_buf = (uint8_t *)malloc(BUFSIZE * sizeof(char));
 
+    // SHA256_Init(&states->ems_hash_client);
+    // SHA256_Init(&states->ems_hash_server);
     SHA256_Init(&states->hs_hash_client);
     SHA256_Init(&states->hs_hash_server);
     SHA256_Init(&states->hs_hash_client_check);
@@ -20,6 +22,7 @@ ProxyStates *initProxyStates(uint16_t version, EVP_MD *md)
     // states->mac_server = HMAC_CTX_new();
     // states->mac_client = EVP_MD_CTX_new();
     // states->mac_server = EVP_MD_CTX_new();
+
     return states;
 }
 void freeProxyStates(ProxyStates *states)
@@ -120,17 +123,54 @@ int loadCertFile(ProxyStates *states, const char *cert_path, const char *key_pat
     return 1;
 }
 
-void praseHandshake(ProxyStates *states, uint8_t *buf, size_t len, char orient)
+void praseClientHello(ProxyStates *states, uint8_t *buf, size_t len, char orient)
 {
     // handshake type
-    uint8_t *p = buf;
-    p += TLS_HEAD_LEN;
+    uint8_t *p = buf + TLS_HEAD_LEN;
+    uint16_t cipher_suites_length = 2;
+    // uint16_t start_pos = 3;
+    uint8_t session_id_length = p[38];
+
+    // 解析会话 ID(39+)
+    if (session_id_length > 0)
+    {
+        printf(" Session ID: ");
+        print_hex(p + 39, session_id_length);
+        printf("\n");
+    }
+    // 解析随机数（7-38 字节）
+    // if (orient == C2S)
+    // {
+    memmove(states->random_client, p + 6, SSL3_RANDOM_SIZE);
+    cipher_suites_length = GET_2BYTE(p + 38 + session_id_length + 1);
+
+    // 解析加密套件
+    printf(" Cipher Suites: ");
+    print_hex(p + 41 + session_id_length, cipher_suites_length);
+    printf("\n");
+
+    // 解析压缩算法
+    uint8_t compression_methods_length = p[41 + session_id_length + cipher_suites_length];
+    if (compression_methods_length > 0)
+    {
+        printf(" Compression Methods: ");
+        print_hex(p + 41 + session_id_length + cipher_suites_length + 1,
+                  compression_methods_length);
+        printf("\n");
+    }
+}
+
+void praseServerHello(ProxyStates *states, uint8_t *buf, size_t len, char orient)
+{
+    // handshake type
+    uint8_t *p = buf + TLS_HEAD_LEN;
     uint16_t cipher_suites_length = 2;
     uint16_t start_pos = 1;
     uint8_t session_id_length = p[38];
     // 解析协议版本（5-6 字节）
+    states->version = GET_2BYTE(p + 4);
     printf(" Protocol Version: ");
-    print_hex(p + 4, 2);
+    print_hex((uint8_t *)&states->version, 2);
     printf("\n");
 
     // 解析会话 ID(39+)
@@ -141,34 +181,22 @@ void praseHandshake(ProxyStates *states, uint8_t *buf, size_t len, char orient)
         printf("\n");
     }
     // 解析随机数（7-38 字节）
-    // printf(" Random: ");
-    // uint8_t *random_key=NULL;
-    // print_hex(random_key, SSL3_RANDOM_SIZE);
-    // printf("\n");
-    if (orient == C2S)
-    {
-        memmove(states->random_client, p + 6, SSL3_RANDOM_SIZE);
-        cipher_suites_length = GET_2BYTE(p + 38 + session_id_length + 1);
-        // (p[38 + session_id_length + 1] << 8) + p[38 + session_id_length + 2];
-        start_pos = 3;
-    }
-    else
-    {
-        memmove(states->random_server, p + 6, SSL3_RANDOM_SIZE);
-    }
+    memmove(states->random_server, p + 6, SSL3_RANDOM_SIZE);
 
     // 解析加密套件
+    uint16_t cipher_suit=GET_2BYTE(p + 39 + session_id_length);
+    // SSL_CIPHER *cipher=
     printf(" Cipher Suites: ");
-    print_hex(p + 38 + session_id_length + start_pos, cipher_suites_length);
+    print_hex((uint8_t*)&cipher_suit, 2);
     printf("\n");
+    states->md=EVP_sha256();
 
     // 解析压缩算法
-    uint8_t compression_methods_length =
-        p[38 + session_id_length + start_pos + cipher_suites_length];
+    uint8_t compression_methods_length = p[39 + session_id_length + cipher_suites_length];
     if (compression_methods_length > 0)
     {
         printf(" Compression Methods: ");
-        print_hex(p + 38 + session_id_length + start_pos + cipher_suites_length + 1,
+        print_hex(p + 39 + session_id_length + cipher_suites_length + 1,
                   compression_methods_length);
         printf("\n");
     }
@@ -465,7 +493,6 @@ int handleMsg(ProxyStates *states, char *buf, size_t len, char orient)
                 goto nextContent;
             }
 
-            // encrypt
             hash_HS_before(states, p + TLS_HEAD_LEN, content_lenth - TLS_HEAD_LEN, orient);
 
             if (p[TLS_HEAD_LEN] == SSL3_MT_CLIENT_KEY_EXCHANGE)
@@ -482,12 +509,12 @@ int handleMsg(ProxyStates *states, char *buf, size_t len, char orient)
             else if (p[TLS_HEAD_LEN] == SSL3_MT_CLIENT_HELLO)
             { // Client Hello
                 printf("Client Hello:\n");
-                praseHandshake(states, p, content_lenth, orient);
+                praseClientHello(states, p, content_lenth, orient);
             }
             else if (p[TLS_HEAD_LEN] == SSL3_MT_SERVER_HELLO)
             { // Server Hello
                 printf("Server Hello:\n");
-                praseHandshake(states, p, content_lenth, orient);
+                praseServerHello(states, p, content_lenth, orient);
             }
             else if (p[TLS_HEAD_LEN] == SSL3_MT_NEWSESSION_TICKET)
             {
