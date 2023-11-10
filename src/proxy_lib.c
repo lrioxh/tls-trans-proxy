@@ -184,12 +184,12 @@ void praseServerHello(ProxyStates *states, uint8_t *buf, size_t len, char orient
     memmove(states->random_server, p + 6, SSL3_RANDOM_SIZE);
 
     // 解析加密套件
-    uint16_t cipher_suit=GET_2BYTE(p + 39 + session_id_length);
+    uint16_t cipher_suit = GET_2BYTE(p + 39 + session_id_length);
     // SSL_CIPHER *cipher=
     printf(" Cipher Suites: ");
-    print_hex((uint8_t*)&cipher_suit, 2);
+    print_hex((uint8_t *)&cipher_suit, 2);
     printf("\n");
-    states->md=EVP_sha256();
+    states->md = EVP_sha256();
 
     // 解析压缩算法
     uint8_t compression_methods_length = p[39 + session_id_length + cipher_suites_length];
@@ -334,15 +334,15 @@ int reFinish(ProxyStates *states, uint8_t *buf, size_t len, char orient)
     uint8_t sha[SHA256_DIGEST_LENGTH] = {0};
     uint8_t mac_head[13] = {0};
     uint8_t mac[SHA256_DIGEST_LENGTH] = {0};
-    uint8_t encrypted_finish[32] = {0};
+    uint8_t encrypted_finish[SHA256_DIGEST_LENGTH] = {0};
     // uint8_t *recved_finish = (uint8_t *)malloc(len - TLS_HEAD_LEN - AES_BLOCK_SIZE);
     uint8_t *iv = buf + TLS_HEAD_LEN;
 
     num_to_byte(SSL3_MT_FINISHED, finish, 1);
     num_to_byte(TLS1_FINISH_MAC_LENGTH, finish + 1, 3);
-    num_to_byte(0, mac_head, 8);
-    gen_TLS_head(SSL3_RT_HANDSHAKE, states->version, 48, mac_head + 8);
-    gen_padding(15, finish + 16);
+    num_to_byte(0, mac_head, RC_SEQ_LEN);
+    gen_TLS_head(SSL3_RT_HANDSHAKE, states->version, AES_BLOCK_SIZE*3, mac_head + 8);
+    gen_padding(15, finish + AES_BLOCK_SIZE);
 
     if (orient == C2S)
     {
@@ -351,14 +351,14 @@ int reFinish(ProxyStates *states, uint8_t *buf, size_t len, char orient)
         print_hex(recved_finish, SHA256_DIGEST_LENGTH);
         printf("\n");
         SHA256_Final(sha, &states->hs_hash_client_check);
-        tls12_PRF(states->md, finish + 4, TLS1_FINISH_MAC_LENGTH, states->master_secret,
+        tls12_PRF(states->md, finish + HS_HEAD_LEN, TLS1_FINISH_MAC_LENGTH, states->master_secret,
                   SSL3_MASTER_SECRET_SIZE, TLS_MD_CLIENT_FINISH_CONST,
                   TLS_MD_CLIENT_FINISH_CONST_SIZE, sha, SHA256_DIGEST_LENGTH, NULL, 0, NULL, 0);
         print_hex(finish, SHA256_DIGEST_LENGTH);
         printf("\n");
 
         SHA256_Final(sha, &states->hs_hash_server);
-        tls12_PRF(states->md, finish + 4, TLS1_FINISH_MAC_LENGTH, states->master_secret,
+        tls12_PRF(states->md, finish + HS_HEAD_LEN, TLS1_FINISH_MAC_LENGTH, states->master_secret,
                   SSL3_MASTER_SECRET_SIZE, TLS_MD_CLIENT_FINISH_CONST,
                   TLS_MD_CLIENT_FINISH_CONST_SIZE, sha, SHA256_DIGEST_LENGTH, NULL, 0, NULL, 0);
 
@@ -377,14 +377,14 @@ int reFinish(ProxyStates *states, uint8_t *buf, size_t len, char orient)
         print_hex(recved_finish, SHA256_DIGEST_LENGTH);
         printf("\n");
         SHA256_Final(sha, &states->hs_hash_server_check);
-        tls12_PRF(states->md, finish + 4, TLS1_FINISH_MAC_LENGTH, states->master_secret,
+        tls12_PRF(states->md, finish + HS_HEAD_LEN, TLS1_FINISH_MAC_LENGTH, states->master_secret,
                   SSL3_MASTER_SECRET_SIZE, TLS_MD_SERVER_FINISH_CONST,
                   TLS_MD_SERVER_FINISH_CONST_SIZE, sha, SHA256_DIGEST_LENGTH, NULL, 0, NULL, 0);
         print_hex(finish, SHA256_DIGEST_LENGTH);
         printf("\n");
 
         SHA256_Final(sha, &states->hs_hash_client);
-        tls12_PRF(states->md, finish + 4, TLS1_FINISH_MAC_LENGTH, states->master_secret,
+        tls12_PRF(states->md, finish + HS_HEAD_LEN, TLS1_FINISH_MAC_LENGTH, states->master_secret,
                   SSL3_MASTER_SECRET_SIZE, TLS_MD_SERVER_FINISH_CONST,
                   TLS_MD_SERVER_FINISH_CONST_SIZE, sha, SHA256_DIGEST_LENGTH, NULL, 0, NULL, 0);
         // print_hex(finish, SHA256_DIGEST_LENGTH);

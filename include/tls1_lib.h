@@ -3,12 +3,15 @@
 
 
 #include <openssl/ssl.h>
+#include <openssl/kdf.h>
+#include <openssl/evp.h>
 #include <openssl/aes.h>
 
 #define RSA_2048_SIZE 256
 #define AES_BITS_LEN 128
 #define TLS_HEAD_LEN 5
 #define HS_HEAD_LEN 4
+#define RC_SEQ_LEN 8
 
 void print_public_key(X509 *cert);
 void print_subject_info(X509 *cert);

@@ -54,7 +54,7 @@ typedef struct proxy_states_st
 
     uint16_t version;
     uint16_t ems ; /*0: no ems, 1: active ems*/
-    SSL_CIPHER *cipher;
+    // SSL_CIPHER *cipher;
 
 
 } ProxyStates;
