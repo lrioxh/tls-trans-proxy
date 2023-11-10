@@ -190,3 +190,7 @@ err:
     EVP_PKEY_CTX_free(pctx);
     return ret;
 }
+
+SSL_CIPHER *get_cipher_by_id(uint16_t id){
+    // int total=sk_SSL_CIPHER_num()
+}

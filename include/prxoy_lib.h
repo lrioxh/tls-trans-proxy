@@ -5,6 +5,7 @@
 #include "include/utils.h"
 #include "include/tls1_lib.h"
 
+//orient
 #define C2S (1)
 #define S2C (-1)
 #define GET_2BYTE(buf) (((buf)[0] << 8) | (buf)[1])
@@ -35,6 +36,12 @@ typedef struct proxy_states_st
     uint8_t random_client[SSL3_RANDOM_SIZE];
     uint8_t master_secret[SSL3_MASTER_SECRET_SIZE];
 
+    //ems
+    // KEY_block *key_block_s;
+    // uint8_t master_secret_s[SSL3_MASTER_SECRET_SIZE];
+    // SHA256_CTX ems_hash_client;
+    // SHA256_CTX ems_hash_server;
+
     // HMAC_CTX *mac_client;
     // HMAC_CTX *mac_server;
     // EVP_MD_CTX *mac_client;
@@ -44,14 +51,15 @@ typedef struct proxy_states_st
     SHA256_CTX hs_hash_client_check;
     SHA256_CTX hs_hash_server_check;
     AES_KEY aes_cache;
-    // AES_KEY aes_server;
 
     uint16_t version;
-    
+    uint16_t ems ; /*0: no ems, 1: active ems*/
+    // SSL_CIPHER *cipher;
+
 
 } ProxyStates;
 
-ProxyStates *initProxyStates(uint16_t version, EVP_MD *md);
+ProxyStates *initProxyStates(void);
 void freeProxyStates(ProxyStates *states);
 void hash_HS_before(ProxyStates *states, char *src, size_t len, char orient);
 void hash_HS_after(ProxyStates *states, uint8_t *src, size_t len, char orient);

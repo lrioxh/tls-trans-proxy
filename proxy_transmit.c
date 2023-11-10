@@ -25,7 +25,6 @@
 #define PORT2CLNT (4322)
 #define nonBlockMode (1)
 
-const char *const pCAPath = "ssl/ca.crt";
 const char *const certificate_path = "ssl/proxy.crt";
 const char *const private_key_path = "ssl/proxy.key";
 
@@ -133,7 +132,7 @@ int main()
     int proxySocket2Serv = -1;
     struct sockaddr_in proxyAddr2Serv = {0};
 
-    ProxyStates *states = initProxyStates(TLS1_2_VERSION, EVP_sha256());
+    ProxyStates *states = initProxyStates();
 
     uint8_t *transBuf = (uint8_t *)malloc(BUFSIZE * sizeof(char));
     // char ipBuf[16] = "192.168.137.1";
@@ -337,6 +336,6 @@ int main()
     }
     free(transBuf);
     freeProxyStates(states);
-    free(states);
+    // free(states);
     return 0;
 }
