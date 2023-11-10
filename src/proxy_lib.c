@@ -444,8 +444,6 @@ int deApplication(ProxyStates *states, uint8_t *buf, size_t len, char orient)
     uint8_t *iv = buf + TLS_HEAD_LEN;
     size_t data_len = len - TLS_HEAD_LEN - AES_BLOCK_SIZE;
     uint8_t *de_data = (uint8_t *)malloc(data_len);
-    print_hex(buf + (len - 32 + 1), 1);
-    uint8_t padding_len = *(buf + len - 32 - 1) + 1;
     if (orient == C2S)
     {
         aes128_decrypt(&states->aes_cache, de_data, iv + AES_BLOCK_SIZE, data_len,
@@ -458,8 +456,11 @@ int deApplication(ProxyStates *states, uint8_t *buf, size_t len, char orient)
     }
     print_hex(de_data, data_len);
     printf("\n");
-    // print_byte(de_data, data_len-32);
-    // print_char(de_data, data_len - 32 - padding_len);
+    uint8_t padding_len = *(de_data + data_len - SHA256_DIGEST_LENGTH - 1) + 1;
+    printf("plaintext: ");
+    print_char(de_data, data_len - SHA256_DIGEST_LENGTH - padding_len);
+    printf("\n");
+    
 }
 int handleMsg(ProxyStates *states, char *buf, size_t len, char orient)
 {
