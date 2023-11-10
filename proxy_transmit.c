@@ -336,6 +336,6 @@ int main()
     }
     free(transBuf);
     freeProxyStates(states);
-    free(states);
+    // free(states);
     return 0;
 }
